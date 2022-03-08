@@ -832,8 +832,3 @@ def state_hash(state_dict):
 
 
 
-
-
-# TODO: consider DataParallel
-#if torch.cuda.device_count() > 1:
-#    model = nn.DataParallel(model)

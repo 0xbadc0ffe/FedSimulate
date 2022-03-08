@@ -244,7 +244,7 @@ if test_trainer:
 emulated_devices = 200
 rounds = 5
 train_loner = True
-pool = 2    # pool = emulated_devices => FedAvg
+pool = 20    # pool = emulated_devices => FedAvg
 p_uniform = pool/emulated_devices   # uniform probability to be choosed
 adaptive_mu = False
 adaptive_phase = 5
@@ -306,7 +306,8 @@ for i in range(emulated_devices):
     # models.reset_model_params(model)         
     # initial_state_dict = model.state_dict()
 
-    train_loader, mask_weights = utils_alg.SIP(train_dataset, torch.arange(models.CIFAR10_output_size), train_dict["batch_size"], alpha=alpha, beta=beta)
+    # Note: hard_mask=True slows the Decives Initialization but is more realistic (expecially when simulating few devices)
+    train_loader, mask_weights = utils_alg.SIP(train_dataset, torch.arange(models.CIFAR10_output_size), train_dict["batch_size"], alpha=alpha, beta=beta, hard_mask=True)
     data_loaders = (train_loader, data_loaders[1])
 
     trainer = models.MFTrainer(data_loaders=data_loaders, train_dict=train_dict)
@@ -455,7 +456,7 @@ print(f"Elapsed time: {timedelta(seconds=end_time-start_time)}")
 plt.figure(1)
 plt.plot(range(1,rounds+1), sampled, label="sampled clients")
 plt.plot(range(1,rounds+1), [pool]*len(sampled), label="expected avg")
-plt.title(f"Sampled clients")
+plt.title(f"Sampled clients [tot: {np.sum(sampled)}]")
 plt.xlabel("round")
 plt.ylabel(f"#")
 plt.legend()
@@ -503,7 +504,7 @@ plt.legend()
 
 # Distribution of Data
 plt.figure(6)
-plt.plot(tot_masks.numpy()/rounds)
+plt.plot(tot_masks.numpy()/np.sum(sampled))
 plt.title(f"Approximate comulative data distribution of clients used for training")
 plt.xlabel("Class")
 plt.ylabel(f"%")
