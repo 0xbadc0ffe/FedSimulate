@@ -64,3 +64,4 @@ def test_sampling(pool,emulated_devices,sample_prob):
     plt.title("Sampled Values")
     plt.plot(np.sort(sampled_val))
     plt.show()
+    return k

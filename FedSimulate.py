@@ -242,7 +242,7 @@ if test_trainer:
 #### FedAVG/Prox Hyper params
 
 emulated_devices = 200
-rounds = 5
+rounds = 15
 train_loner = True
 pool = 20    # pool = emulated_devices => FedAvg
 p_uniform = pool/emulated_devices   # uniform probability to be choosed
@@ -251,7 +251,7 @@ adaptive_phase = 5
 
 # Synthetic Data Heterogeneity (alpha = beta = 0 homogeneous case)
 # Imbalance follows this power law : clip(exp(vals*-alpha*numb_of_classes)-beta, min=0)
-alpha = 0.01    # power factor
+alpha = 0.03    # power factor
 beta = 0 #0.2   # constant factor
 
 devices_list = []
@@ -274,7 +274,7 @@ elif sample_prob_fn == "normal":
 
 
 # Test Sampling
-# utils_alg.test_sampling(pool, emulated_devices, sample_prob)
+#utils_alg.test_sampling(pool, emulated_devices, sample_prob)
 
 
 
@@ -450,6 +450,7 @@ if train_loner:
 
 print(f"Elapsed time: {timedelta(seconds=end_time-start_time)}")
 
+print(f"\n\nTraining Dictionary: {train_dict}")
 
 
 # Sampled devices per round 
@@ -492,7 +493,7 @@ plt.hist(hist_data, emulated_devices)
 plt.title("Devices usage")
 plt.xlabel("Device Tag")
 plt.ylabel("Usage")
-plt.legend()
+#plt.legend()
 
 # Best Devices
 plt.figure(5)
@@ -500,15 +501,15 @@ plt.hist(best_dev, emulated_devices)
 plt.title(f"Best Devices per epoch")
 plt.xlabel("Device Tag")
 plt.ylabel(f"Round Winner counter")
-plt.legend()
+#plt.legend()
 
 # Distribution of Data
 plt.figure(6)
 plt.plot(tot_masks.numpy()/np.sum(sampled))
-plt.title(f"Approximate comulative data distribution of clients used for training")
+plt.title(f"Cumulative clients training data usage per class")
 plt.xlabel("Class")
 plt.ylabel(f"%")
-plt.legend()
+#plt.legend()
 
 
 plt.show()

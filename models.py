@@ -102,7 +102,7 @@ def get_CIFARloaders(batch_size=128, batch_size_val=1000, data_transform: Union[
         image_transforms = None
 
     train_dataset = datasets.CIFAR10(
-            "../../data",
+            "data",
             train=True,
             download=True,
             transform=image_transforms
@@ -116,7 +116,7 @@ def get_CIFARloaders(batch_size=128, batch_size_val=1000, data_transform: Union[
 
 
     test_dataset = datasets.CIFAR10(
-        "../../data",
+        "data",
         train=False,
         transform=image_transforms
     )
