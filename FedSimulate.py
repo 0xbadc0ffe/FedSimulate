@@ -506,7 +506,7 @@ plt.ylabel(f"Round Winner counter")
 # Distribution of Data
 plt.figure(6)
 plt.plot(tot_masks.numpy()/np.sum(sampled))
-plt.title(f"Cumulative clients training data usage per class")
+plt.title(f"Average clients training data usage for each class")
 plt.xlabel("Class")
 plt.ylabel(f"%")
 #plt.legend()
