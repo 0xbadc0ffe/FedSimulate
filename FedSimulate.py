@@ -37,11 +37,12 @@ def clean():
 
 class FedDevice():
 
-    def __init__(self, trainer:Union[nn_utils.Trainer, nn_utils.MFTrainer], state_dict, tag:str, pk:float, mask_weights:torch.tensor=None):
+    def __init__(self, trainer:Union[nn_utils.Trainer, nn_utils.MFTrainer], state_dict, tag:str, pk:float, mask_weights:torch.tensor=None, nk=1):
         self.trainer = trainer
         self.state_dict=copy.deepcopy(state_dict)
-        self.tag = tag
-        self.pk = pk
+        self.tag = tag          # Device label
+        self.pk = pk            # probability to be picked for a training round
+        self.nk = nk            # we can assign here the Device weight (e.g number of examples/tot or some other weighing logic)
         self.mask_weights = mask_weights
         self.major_class = self.eval_major_class()
 
