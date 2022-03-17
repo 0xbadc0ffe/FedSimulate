@@ -26,7 +26,7 @@ def SIP(dataset, targets, batch_size, alpha=0.03, beta=0.2, hard_mask=True, plot
     l_targ = len(targets)
     vals = torch.arange(l_targ)
     np.random.shuffle(vals.numpy())
-    weights = torch.clip(torch.exp(vals*-alpha*l_targ)-beta, min=0)
+    weights = torch.clip(torch.exp(vals*-alpha*l_targ) + beta, min=0, max=1)
     samples_weights = weights[dataset.targets]
 
     if hard_mask:

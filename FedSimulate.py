@@ -1,5 +1,6 @@
 from __future__ import print_function, division
 from cProfile import label
+from logging import raiseExceptions
 
 from typing import Mapping, Union, Optional, Callable, Dict
 import numpy as np
@@ -17,6 +18,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 import platform
 import models
+import nn_utils
 import copy
 
 from timeit import default_timer as timer
@@ -35,13 +37,13 @@ def clean():
 
 class FedDevice():
 
-    def __init__(self, trainer:Union[models.Trainer, models.MFTrainer], state_dict, tag:str, pk:float, mask_weights:torch.tensor=None):
+    def __init__(self, trainer:Union[nn_utils.Trainer, nn_utils.MFTrainer], state_dict, tag:str, pk:float, mask_weights:torch.tensor=None):
         self.trainer = trainer
         self.state_dict=copy.deepcopy(state_dict)
         self.tag = tag
         self.pk = pk
         self.mask_weights = mask_weights
-        self.major_class = self.major_class()
+        self.major_class = self.eval_major_class()
 
     def __str__(self):
         return f"Device {self.tag} | Rounds Completed: {self.trainer.rounds_completed}"
@@ -60,7 +62,7 @@ class FedDevice():
     def free(self):
         self.state_dict=None
 
-    def major_class(self):
+    def eval_major_class(self):
         if self.mask_weights is None or not (self.mask_weights-1).any():
             return None # all weights are 1
         else:
@@ -186,7 +188,7 @@ def free_all(devices_list):
         dev.free()
 
 
-models.set_reproducibility()
+nn_utils.set_reproducibility()
 clean()
 
 
@@ -227,15 +229,15 @@ train_dict = {
     "momentum": 0.1,
     "scheduler_bool": True,
     "gamma": 0.9,
-    #"perm": models.permute_pixels,
+    #"perm": nn_utils.permute_pixels,
     "mu":  0.005         # if mu=0 => FedAvg
 }
 
 model.to(device)
 test_trainer = False
 if test_trainer:
-    #trainer = models.Trainer(model=model, train_dict=train_dict) # Model-based version
-    trainer = models.MFTrainer(train_dict=train_dict)             # Model-free version
+    #trainer = nn_utils.Trainer(model=model, train_dict=train_dict) # Model-based trainer
+    trainer = nn_utils.MFTrainer(train_dict=train_dict)             # Model-free trainer
     print(trainer.fit(model))
 
 
@@ -250,8 +252,8 @@ adaptive_mu = False
 adaptive_phase = 5
 
 # Synthetic Data Heterogeneity (alpha = beta = 0 homogeneous case)
-# Imbalance follows this power law : clip(exp(vals*-alpha*numb_of_classes)-beta, min=0)
-alpha = 0.03    # power factor
+# Imbalance follows this power law : clip(exp(vals*-alpha*numb_of_classes)+beta, min=0)
+alpha = 0.09   # power factor
 beta = 0 #0.2   # constant factor
 
 devices_list = []
@@ -265,7 +267,7 @@ sample_prob_fn = fn_list[0]
 if sample_prob_fn == "uniform":
     sample_prob = lambda : np.random.uniform(0,1)
 
-# Note: this is not so usefull in an unifrom device probability context
+# Note: this is not so usefull in an unifrom device probability scenario
 elif sample_prob_fn == "normal":
     from scipy.stats import norm
     norm_mean = 0.5
@@ -288,7 +290,7 @@ data_loaders = (train_loader, test_loader)
 
 
 # Server Device Initialization
-trainer = models.MFTrainer(data_loaders=data_loaders, train_dict=train_dict) # this is needed only for the testing phase
+trainer = nn_utils.MFTrainer(data_loaders=data_loaders, train_dict=train_dict) # this is needed only for the testing phase
 server = FedServer(model, trainer, tag="server", weights_generator=weights_generator)
 
 
@@ -296,21 +298,21 @@ if train_loner:
     train_dict_loner = copy.deepcopy(train_dict)
     train_dict_loner["mu"] = 0 
     # Loner Device used for comparison (weights do not update with server)
-    trainer = models.MFTrainer(data_loaders=data_loaders, train_dict=train_dict_loner)
+    trainer = nn_utils.MFTrainer(data_loaders=data_loaders, train_dict=train_dict_loner)
     loner =  FedDevice(trainer=trainer, state_dict=server.state_dict, tag="loner", pk=1)
 
 
 # Initializating devices to emulate
 for i in range(emulated_devices):
     # resetting state_dict is not necessary since they are gonna train after a global model update by the server
-    # models.reset_model_params(model)         
+    # nn_utils.reset_model_params(model)         
     # initial_state_dict = model.state_dict()
 
     # Note: hard_mask=True slows the Decives Initialization but is more realistic (expecially when simulating few devices)
     train_loader, mask_weights = utils_alg.SIP(train_dataset, torch.arange(models.CIFAR10_output_size), train_dict["batch_size"], alpha=alpha, beta=beta, hard_mask=True)
     data_loaders = (train_loader, data_loaders[1])
 
-    trainer = models.MFTrainer(data_loaders=data_loaders, train_dict=train_dict)
+    trainer = nn_utils.MFTrainer(data_loaders=data_loaders, train_dict=train_dict)
     dev =  FedDevice(trainer=trainer, state_dict=None, tag=str(i), pk=p_uniform, mask_weights=mask_weights)
     devices_list.append(dev)
     print(f"Building Federation Clients (devices):  {i}/{emulated_devices}", end="\r")
@@ -374,8 +376,8 @@ for round in range(1,rounds+1):
             max_acc = acc
             bdev = int(dev.tag)
         sum_acc += acc
-        print(str(dev) + f"/{round} | Accuracy: {acc} %    | Major class: {dev.major_class} |  Device hash: {models.state_hash(dev.state_dict)}\n")
-        # print(f"\nDevice hash: {models.state_hash(dev.state_dict)}\n")
+        print(str(dev) + f"/{round} | Accuracy: {acc} %    | Major class: {dev.major_class} |  Device hash: {nn_utils.state_hash(dev.state_dict)}\n")
+        # print(f"\nDevice hash: {nn_utils.state_hash(dev.state_dict)}\n")
         print("-----------------------------\n")
         round_weights[dev.tag] = dev.state_dict
         seq_runs += 1
@@ -397,7 +399,7 @@ for round in range(1,rounds+1):
         acc, lon_loss = loner.round_fit(server.model)
         loner_acc.append(acc)
         loner_loss.append(lon_loss.numpy())
-        print(str(loner) + f"/{round} | Accuracy: {acc} %    | Device hash: {models.state_hash(loner.state_dict)}\n")
+        print(str(loner) + f"/{round} | Accuracy: {acc} %    | Device hash: {nn_utils.state_hash(loner.state_dict)}\n")
         print("-----------------------------\n")
         seq_runs+=1
 
@@ -409,6 +411,8 @@ for round in range(1,rounds+1):
             server.update([round_weights[str(bdev)]])
     elif weights_generator == "top-k_avg":
         server.update(round_weights, client_perform, pick_top_k)
+    else:
+        raise Exception("Unknwown weights generator")
 
     # Testing server
     test_out, test_string = server.test()
@@ -417,8 +421,8 @@ for round in range(1,rounds+1):
     server_loss.append(round_server_loss)
     print(f"\n\n** Round {round}/{rounds} completed **\n")
     print("Sever  " + test_string+"\n")
-    print(f"Server hash: {models.state_hash(server.state_dict)}")           # must be equal
-    print(f"Model hash:  {models.state_hash(server.model.state_dict())}\n") # must be equal
+    print(f"Server hash: {nn_utils.state_hash(server.state_dict)}")           # must be equal
+    print(f"Model hash:  {nn_utils.state_hash(server.model.state_dict())}\n") # must be equal
 
     # Adaptive mu
     if adaptive_mu and round % adaptive_phase == 0:
@@ -443,10 +447,10 @@ print(f"\nFinal Mu:   {server.trainer.mu}    |  Weights generator: {server.weigh
 if weights_generator == w_generators[2]:
     print(f"Avg of top {pick_top_k} clients")
 print(f"\nRunned trainings: {seq_runs}   [Rounds: {rounds}]\n")
-print(f"Sever        | Rounds completed: {rounds} | Accuracy: {test_out['accuracy']} %      | Device hash: {models.state_hash(server.state_dict)}")
+print(f"Sever        | Rounds completed: {rounds} | Accuracy: {test_out['accuracy']} %      | Device hash: {nn_utils.state_hash(server.state_dict)}")
 print(f"Clients avg  | Rounds completed: {rounds} | Accuracy: {np.round(mean_client_acc[-1],2)} %      | Device hash:  --- ")
 if train_loner:
-    print(str(loner) + f" | Accuracy: {acc} %      | Device hash: {models.state_hash(loner.state_dict)}\n")
+    print(str(loner) + f" | Accuracy: {acc} %      | Device hash: {nn_utils.state_hash(loner.state_dict)}\n")
 
 print(f"Elapsed time: {timedelta(seconds=end_time-start_time)}")
 
@@ -486,14 +490,18 @@ plt.legend()
 
 # Devices usage histogram
 plt.figure(4)
-hist_data = []
+# hist_data = []
+# for dev in devices_list:
+#     hist_data = hist_data + [int(dev.tag)]*dev.trainer.rounds_completed
+# plt.hist(hist_data, emulated_devices)
+hist_data = {}
 for dev in devices_list:
-    hist_data = hist_data + [int(dev.tag)]*dev.trainer.rounds_completed
-plt.hist(hist_data, emulated_devices)
+    hist_data[int(dev.tag)]=dev.trainer.rounds_completed
+plt.bar(hist_data.keys(), hist_data.values())
 plt.title("Devices usage")
 plt.xlabel("Device Tag")
 plt.ylabel("Usage")
-#plt.legend()
+
 
 # Best Devices
 plt.figure(5)
@@ -501,15 +509,29 @@ plt.hist(best_dev, emulated_devices)
 plt.title(f"Best Devices per epoch")
 plt.xlabel("Device Tag")
 plt.ylabel(f"Round Winner counter")
-#plt.legend()
+
 
 # Distribution of Data
 plt.figure(6)
-plt.plot(tot_masks.numpy()/np.sum(sampled))
+#plt.plot(tot_masks.numpy()/np.sum(sampled))
+plt.bar(np.arange(len(tot_masks)), tot_masks.numpy()/np.sum(sampled))
 plt.title(f"Average clients training data usage for each class")
 plt.xlabel("Class")
 plt.ylabel(f"%")
-#plt.legend()
+
+
+
+major_classes = []
+for dev in devices_list:
+    if dev.major_class is not None:
+        major_classes.append(dev.major_class)
+if len(major_classes)>1:
+    plt.figure(7)
+    plt.title("Major Classes Distribution")
+    plt.bar(np.arange(len(major_classes)), major_classes)
+    plt.ylabel("Class")
+    plt.xlabel("Device Tag")
+
 
 
 plt.show()
