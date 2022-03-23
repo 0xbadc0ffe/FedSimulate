@@ -251,6 +251,7 @@ pool = 20    # pool = emulated_devices => FedAvg
 p_uniform = pool/emulated_devices   # uniform probability to be choosed
 adaptive_mu = False
 adaptive_phase = 5
+mu_inc = 0.1
 
 # Synthetic Data Heterogeneity (alpha = beta = 0 homogeneous case)
 # Imbalance follows this power law : clip(exp(vals*-alpha*numb_of_classes)+beta, min=0)
@@ -413,7 +414,7 @@ for round in range(1,rounds+1):
     elif weights_generator == "top-k_avg":
         server.update(round_weights, client_perform, pick_top_k)
     else:
-        raise Exception("Unknwown weights generator")
+        raise Exception("Unknwown weights generation policy")
 
     # Testing server
     test_out, test_string = server.test()
@@ -428,11 +429,11 @@ for round in range(1,rounds+1):
     # Adaptive mu
     if adaptive_mu and round % adaptive_phase == 0:
         if init_loss - round_server_loss > 0:
-            update_mu(devices_list, max(0,server.trainer.mu-0.1))
-            server.set_mu(max(0,server.trainer.mu-0.1))
+            update_mu(devices_list, max(0,server.trainer.mu-mu_inc))
+            server.set_mu(max(0,server.trainer.mu-mu_inc))
         else:
-            update_mu(devices_list, max(0,server.trainer.mu+0.1))
-            server.set_mu(max(0,server.trainer.mu-0.1))
+            update_mu(devices_list, max(0,server.trainer.mu+mu_inc))
+            server.set_mu(max(0,server.trainer.mu-mu_inc))
 
     # Free (None overwrite) the selected devices state_dict to keep memory occupancy low
     # Since every device has its own copy of state_dict we would end with high memory allocated 
@@ -507,7 +508,7 @@ plt.ylabel("Usage")
 # Best Devices
 plt.figure(5)
 plt.hist(best_dev, emulated_devices)
-plt.title(f"Best Devices per epoch")
+plt.title(f"Best Devices per round")
 plt.xlabel("Device Tag")
 plt.ylabel(f"Round Winner counter")
 
